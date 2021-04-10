@@ -3,6 +3,9 @@
 //Western Engineering base code
 //2020 05 13 E J Porter
 
+// The following base code for the MSEbot created by J Porter
+// Was edited by Ajanthan Pathmanathan and used to complete the tasks required for the Final Project
+
 
 /*
   esp32                                           MSE-DuinoV2
@@ -45,7 +48,6 @@ const int ciHeartbeatLED = 2;
 const int ciPB1 = 27;
 const int ciPB2 = 26;
 const int ciPot1 = A4;    //GPIO 32  - when JP2 has jumper installed Analog pin AD4 is connected to Poteniometer R1
-const int ciLimitSwitch = 26;
 const int ciIRDetector = 16;
 const int ciMotorLeftA = 4;
 const int ciMotorLeftB = 18;
@@ -59,6 +61,7 @@ const int ciSmartLED = 25;
 const int ciStepperMotorDir = 22;
 const int ciStepperMotorStep = 21;
 
+// Variables used to store the Pins for both limit switches
 const int Front_Switch = 15;
 const int Top_Switch = 26;
 
@@ -67,13 +70,18 @@ volatile uint32_t vui32test2;
 
 #include "0_Core_Zero.h"
 
+// These are libraries needed to run the Gyroscope Sensor
 #include "Wire.h"
 #include <MPU6050_light.h>
+#include <esp_task_wdt.h>\
 
-#include <esp_task_wdt.h>
-
+// Servo Library for the ESP32
 #include <ESP32Servo.h>
+
+// Creating an object of Servo class called myservo
+// This was used during the testing period and was left in for the final version
 Servo myservo;
+
 
 #include <Adafruit_NeoPixel.h>
 #include <Math.h>
@@ -125,21 +133,27 @@ boolean btToggle = true;
 int iButtonState;
 int iLastButtonState = HIGH;
 
+// Variables to set the base speed of each wheel
 int rightSpeed = 180;
 int leftSpeed = 180;
 
+// Connects the MPU6050 Library and the Wire Library
 MPU6050 mpu(Wire);
+
+// Timer variables for running millis() code
 unsigned long timer = 0;
 unsigned long timer2 = 0;
+
+// Variable holds the angle in the z-direction of the gyroscope
 float angleZ = 0;
 
+// Target represents the direction the robot wants to move
 int target = 0;
 float absolute;
 
-int servoPin = 2;
-
+/* Smart LEDS where not used in the project */
 // Declare our SK6812 SMART LED object:
-Adafruit_NeoPixel SmartLEDs(2, 25, NEO_GRB + NEO_KHZ400);
+//Adafruit_NeoPixel SmartLEDs(2, 25, NEO_GRB + NEO_KHZ400);
 // Argument 1 = Number of LEDs (pixels) in use
 // Argument 2 = ESP32 pin number
 // Argument 3 = Pixel type flags, add together as needed:
@@ -150,11 +164,13 @@ Adafruit_NeoPixel SmartLEDs(2, 25, NEO_GRB + NEO_KHZ400);
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
 
 void setup() {
+  // Serial Connection established
   Serial.begin(115200);
-  Serial2.begin(2400, SERIAL_8N1, ciIRDetector);  // IRDetector on RX2 receiving 8-bit words at 2400 baud
+  //Serial2.begin(2400, SERIAL_8N1, ciIRDetector);  // IRDetector on RX2 receiving 8-bit words at 2400 baud
 
   Core_ZEROInit();
 
+  // This section starts up the gyroscope and is used to configure it to the direction it is facing
   Wire.begin();
   mpu.begin();
   Serial.println(F("Calculating gyro offset, do not move MPU6050"));
@@ -178,11 +194,16 @@ void setup() {
   WDT_vfFastWDTWarningCore1[9] = 0;
   WDT_ResetCore1();
 
+  // Setup Drive Motors
   setupMotion();
+  
+  // Sensor Pin Setup
   pinMode(ciHeartbeatLED, OUTPUT);
   pinMode(ciPB1, INPUT_PULLUP);
-  pinMode(ciLimitSwitch, INPUT_PULLUP);
-
+  pinMode(Front_Switch, INPUT_PULLUP);
+  pinMode(Top_Switch, INPUT_PULLUP);
+  
+  /* Climb Motor Setup */
   ledcAttachPin(2, 5);
   ledcAttachPin(5, 6);
 
@@ -191,119 +212,43 @@ void setup() {
 
   ledcWrite(5, 0);
   ledcWrite(6, 0);
-
-    attachInterrupt(Front_Switch, driveUp, CHANGE);
-  attachInterrupt(Top_Switch, driveDown, CHANGE);
+  
+  // The two limit switches are set up as interrupts that will trigger to any change
+  // The Front Switch will use the driveUp function causing it to climb
+  attachInterrupt(Front_Switch, climbUp, CHANGE);
+  
+  // The Top Switch will use the climbStop function stoping the climb at the top
+  attachInterrupt(Top_Switch, climbStop, CHANGE);
 }
 
-void driveUp()
+
+// Climber Functions //
+
+void climbUp()
 {
-
-      ledcWrite(5, 250);
-      ledcWrite(6, 0);
-
+  // Stop Drivetrain
+  ledcWrite(2, 0);
+  ledcWrite(1, 0);
+  ledcWrite(4, 0);
+  ledcWrite(3, 0);
+  
+  // Run Climb
+  ledcWrite(5, 250);
+  ledcWrite(6, 0);
 }
 
-void driveDown()
+void climbStop()
 {
-
   ledcWrite(5, 0);
   ledcWrite(6, 0);
-
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/*void driveStraight(int duration)
-  {
-  unsigned long tim = millis();
-  while (millis() < (duration+tim)) {
-    if((millis()-timer)>10){ // print data every 10ms
-    mpu.update();
-    //int rightSpeed = 160 - (mpu.getAngleZ());
-    int rightSpeed = 180 - (mpu.getAngleZ());
-    int leftSpeed = 180 + (mpu.getAngleZ());
-    MoveTo(4, leftSpeed, rightSpeed);
+// Robot steering functions //
 
-    timer = millis();
-  }
-  }
-
-  }
-
-
-  void driveLeft(int duration)
-  {
-  unsigned long tim = millis();
-  while (millis() < (duration + tim)) {
-    //if (mpu.getAngleZ() < 90 && mpu.getAngleZ() > 1) { // print data every 10ms
-    //ledcWrite(2, 170);
-    //ledcWrite(1, 0);
-    //ledcWrite(4, 0);
-    //ledcWrite(3, 170);
-    MoveTo(2, 140, 140);
-    //tim = millis();
-    //}
-  }
-  }
-
-  void driveRight(int duration)
-  {
-  unsigned long tim = millis();
-  while (millis() < (duration + tim)) {
-    //if ((millis() - timer) > 10) { // print data every 10ms
-    ledcWrite(2, 0);
-    ledcWrite(1, 170);
-    ledcWrite(4, 170);
-    ledcWrite(3, 0);
-
-    //tim = millis();
-    //}
-  }
-  }
-
-  void turnRight(int duration)
-  {
-  // 500 for a 90deg turn
-  unsigned long tim = millis();
-  while (millis() < (duration+tim)) {
-    //if((millis()-timer)>10){ // print data every 10ms
-    //mpu.update();
-    //int rightSpeed = 170 + (mpu.getAngleZ());
-    //int leftSpeed = 130;
-
-    MoveTo(1, 130, 0);
-
-    timer = millis();
-  }
-  }
-
-  void driveBackward(int duration)
-  {
-  unsigned long tim = millis();
-  while (millis() < (duration + tim)) {
-    if ((millis() - timer) > 10) { // print data every 10ms
-      mpu.update();
-      int rightSpeed = 180 + (mpu.getAngleZ());
-      int leftSpeed = 180 - (mpu.getAngleZ());
-      /*Serial.print("R: ");
-        Serial.print(rightSpeed);
-        Serial.print("\tL: ");
-        Serial.println(leftSpeed);
-      MoveTo(1, leftSpeed, rightSpeed);
-
-      timer = millis();
-    }
-  }
-
-  }*/
-
-
-//////////////////////////////////////////////////////////////////////////////////////
-
-
-////////////////////////////////////////////////////////////////////////////////////////
-void driveLeft(int duration)
+// Note for turning I wanted to have the ability to turn the robot based on the angle from the gyroscope
+// but I couldn't acheive this due to a lack of time.
+void driveLeft(int duration)              // Turns robot to the left
 {
   unsigned long tim = millis();
   while (millis() < (duration + tim)) {
@@ -316,35 +261,40 @@ void driveLeft(int duration)
   }
 }
 
-void driveRight(int duration)
+void driveRight(int duration)             // Turns robot to the right
 {
   unsigned long tim = millis();
   while (millis() < (duration + tim)) {
-
 
       ledcWrite(2, 170);
-        ledcWrite(1, 0);
-        ledcWrite(4, 0);
-        ledcWrite(3, 170);
+      ledcWrite(1, 0);
+      ledcWrite(4, 0);
+      ledcWrite(3, 170);
 
   }
 }
 
-void driveStraight(int duration)
+
+// Robot Driving Functions
+
+void driveStraight(int duration)                // This code is used to drive the robot in a straight line
 {
+  // Runs for the duration of the time specified
   unsigned long tim = millis();
   while (millis() < (duration + tim)) {
-    if ((millis() - timer) > 10) { // print data every 10ms
-      mpu.update();
-      //int rightSpeed = 160 - (mpu.getAngleZ());
-      int rightSpeed = 180 - (mpu.getAngleZ());
-      int leftSpeed = 180 + (mpu.getAngleZ());
-
+    if ((millis() - timer) > 10) { // checks angle every 10ms   
+      mpu.update();                // Updates the angle of the Gyro
+      
+      // These equations determine the speed of each wheel depending on the angle the robot is facing
+      int rightSpeed = rightSpeed - (mpu.getAngleZ());
+      int leftSpeed = leftSpeed + (mpu.getAngleZ());
+      
+      /* To check if the gyro is working this code can be run 
       Serial.print("R: ");
       Serial.print(rightSpeed);
       Serial.print("\tL: ");
-      Serial.println(leftSpeed);
-
+      Serial.println(leftSpeed); */
+      
       MoveTo(1, leftSpeed, rightSpeed);
 
       timer = millis();
@@ -355,20 +305,21 @@ void driveStraight(int duration)
 
 void driveBackward(int duration)
 {
+  // This code is for driving straight backwards
+  // It is based on the code to drive straight forward, but the speed equations are changed
   unsigned long tim = millis();
   while (millis() < (duration + tim)) {
     if ((millis() - timer) > 10) { // print data every 10ms
       mpu.update();
-      //int rightSpeed = 160 - (mpu.getAngleZ());
-      int rightSpeed = 200 + (mpu.getAngleZ());
-      int leftSpeed = 20,0 - (mpu.getAngleZ());
+      int rightSpeed = rightSpeed + (mpu.getAngleZ());
+      int leftSpeed = leftSpeed - (mpu.getAngleZ());
 .
-      Serial.print("R: ");
+      /*Serial.print("R: ");
       Serial.print(rightSpeed);
       Serial.print("\tL: ");
-      Serial.println(leftSpeed);
+      Serial.println(leftSpeed);*/
 
-      MoveTo(1, leftSpeed, rightSpeed);
+      MoveTo(4, leftSpeed, rightSpeed);
 
       timer = millis();
     }
@@ -412,13 +363,13 @@ void loop()
   }
   iLastButtonState = iButtonValue;             // store button state
 
-  if (!digitalRead(ciLimitSwitch))
+  /*if (!digitalRead(ciLimitSwitch))
   {
     //btRun = 0; //if limit switch is pressed stop bot
     ucMotorStateIndex = 10;
     ucMotorState = 0;
     move(0);
-  }
+  }*/
 
   if (Serial2.available() > 0) {               // check for incoming data
     CR1_ui8IRDatum = Serial2.read();          // read the incoming byte
@@ -457,11 +408,11 @@ void loop()
               {
                 case 0:
                   {
-                    delay(1000);
+                    delay(1000);                    // This delay ensures that after the button is pressed the gyro has been calibrated
                     ucMotorStateIndex = 1;
-                    driveStraight(1300);
+                    driveStraight(1300);            // Runs the go straight function based on time duration set based on the testing done
                     ucMotorState = 0;
-                    move(0);
+                    move(0);                        // Robot comes to a full stop after the command to drive straight
                     break;
                   }
                 case 1:
@@ -474,9 +425,9 @@ void loop()
                 case 2:
                   {
                     ucMotorStateIndex = 3;
-                    driveLeft(185);
+                    driveLeft(185);                 // Left Turn is conducted
                     ucMotorState = 0;
-                    move(0);
+                    move(0);                        // Robot does a full stop to ensure minimal drifiting after the turn
                     break;
                   }
                 case 3:
@@ -489,9 +440,9 @@ void loop()
                 case 4:
                   {
                     ucMotorStateIndex = 5;
-                    driveStraight(1600);
+                    driveStraight(1600);            // Robot drives straight to move across the box (parallel to the door)
                     ucMotorState = 0;
-                    move(0);
+                    move(0);                        // Robot comes to a full stop after the command to drive straight
                     break;
                   }
                 case 5:
@@ -504,9 +455,9 @@ void loop()
                 case 6:
                   {
                     ucMotorStateIndex = 7;
-                    driveLeft(185);
+                    driveLeft(185);                 // Robot does a full stop to ensure minimal drifiting after the turn
                     ucMotorState = 0;
-                    move(0);
+                    move(0);                        // Robot does a full stop to ensure minimal drifiting after the turn
                     break;
                   }
                 case 7:
@@ -519,92 +470,13 @@ void loop()
                 case 8:
                   {
                     ucMotorStateIndex = 9;
-                    driveStraight(2000);
+                    driveStraight(2000);            // Robot drives straight longer then the desired amount to show that the touch sensor enables the climbing
                     ucMotorState = 0;
                     move(0);
                     break;
                   }
                 case 9:
                   {
-                    //ucMotorStateIndex = 10;
-                    ucMotorState = 0;
-                    move(0);
-                    break;
-                  }
-                case 10:
-                  {
-                    ucMotorStateIndex = 11;
-                    driveUp();
-                    ucMotorState = 0;
-                    move(0);
-                    break;
-                  }
-                case 11:
-                  {
-                    ucMotorStateIndex = 12;
-                    ucMotorState = 0;
-                    move(0);
-                    break;
-                  }
-                case 12:
-                  {
-                    ucMotorStateIndex = 13;
-                    driveStraight(200);
-                    ucMotorState = 0;
-                    move(0);
-                    break;
-                  }
-                case 13:
-                  {
-                    ucMotorStateIndex = 14;
-                    ucMotorState = 0;
-                    move(0);
-                    break;
-                  }
-                case 14:
-                  {
-                    driveLeft(165);
-                    ucMotorStateIndex = 15;
-                    break;
-                  }
-                case 15:
-                  {
-                    ucMotorStateIndex = 16;
-                    ucMotorState = 0;
-                    move(0);
-                    break;
-                  }
-                case 16:
-                  {
-                      driveStraight(1100);
-                      ucMotorStateIndex = 17;
-                    break;
-                  }
-                case 17:
-                  {
-                    ucMotorStateIndex = 18;
-                    ucMotorState = 0;
-                    move(0);
-                    break;
-                  }
-                case 18:
-                  {
-                    
-                    break;
-                  }
-                case 19:
-                  {
-                    ucMotorStateIndex = 20;
-                    ucMotorState = 0;
-                    move(0);
-                    break;
-                  }
-                case 20:
-                  {
-                    ledcSetup(5, 50 , 16);
-                    ledcAttachPin(15, 5);
-                    ledcWrite(5, 7000);
-                    driveRight(600);
                     ucMotorState = 0;
                     move(0);
                     break;
@@ -637,6 +509,7 @@ void loop()
         //###############################################################################
         case 3:
           {
+            // Encoder planned to be used for final version
             //move bot X number of odometer ticks
             if (ENC_ISMotorRunning())
             {
@@ -672,7 +545,7 @@ void loop()
         //###############################################################################
         case 7:
           {
-            if (CR1_ui8IRDatum == 0x55) {                // if proper character is seen
+            /*if (CR1_ui8IRDatum == 0x55) {                // if proper character is seen
               SmartLEDs.setPixelColor(0, 0, 25, 0);      // make LED1 green with 10% intensity
             }
             else if (CR1_ui8IRDatum == 0x41) {           // if "hit" character is seen
@@ -683,7 +556,7 @@ void loop()
             }
             SmartLEDs.show();                            // send updated colour to LEDs
 
-            CR1_ucMainTimerCaseCore1 = 8;
+            CR1_ucMainTimerCaseCore1 = 8;*/
             break;
           }
         //###############################################################################
