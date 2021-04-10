@@ -550,18 +550,7 @@ void loop()
         //###############################################################################
         case 7:
           {
-            /*if (CR1_ui8IRDatum == 0x55) {                // if proper character is seen
-              SmartLEDs.setPixelColor(0, 0, 25, 0);      // make LED1 green with 10% intensity
-            }
-            else if (CR1_ui8IRDatum == 0x41) {           // if "hit" character is seen
-              SmartLEDs.setPixelColor(0, 25, 0, 25);     // make LED1 purple with 10% intensity
-            }
-            else {                                       // otherwise
-              SmartLEDs.setPixelColor(0, 25, 0, 0);      // make LED1 red with 10% intensity
-            }
-            SmartLEDs.show();                            // send updated colour to LEDs
-
-            CR1_ucMainTimerCaseCore1 = 8;*/
+            CR1_ucMainTimerCaseCore1 = 8;
             break;
           }
         //###############################################################################
@@ -581,7 +570,7 @@ void loop()
 
         }
     }
-
+    
     // Heartbeat LED
     CR1_ulHeartbeatTimerNow = millis();
     if (CR1_ulHeartbeatTimerNow - CR1_ulHeartbeatTimerPrevious >= CR1_ciHeartbeatInterval)
