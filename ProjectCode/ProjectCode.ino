@@ -46,7 +46,7 @@
 //Pin assignments
 const int ciHeartbeatLED = 2;
 const int ciPB1 = 27;
-const int ciPB2 = 26;
+//const int ciPB2 = 26;
 const int ciPot1 = A4;    //GPIO 32  - when JP2 has jumper installed Analog pin AD4 is connected to Poteniometer R1
 const int ciIRDetector = 16;
 const int ciMotorLeftA = 4;
